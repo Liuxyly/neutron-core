@@ -1,0 +1,69 @@
+version: "2"
+
+networks:
+  neutron:
+    driver: bridge
+
+services:
+  postgresql:
+    image: postgres:15.1-alpine
+    container_name: neutron-local-postgresql
+    networks:
+      neutron:
+        aliases:
+          - neutron-local-postgresql
+    ports:
+      - "5433:5432"
+    volumes:
+      - "./postgresql:/var/lib/postgresql/data"
+    environment:
+      - POSTGRES_USER=neutron
+      - POSTGRES_PASSWORD=Asdqwe123#
+  redis:
+    image: redis:7.0.5-alpine
+    container_name: neutron-local-redis
+    networks:
+      neutron:
+        aliases:
+          - neutron-local-redis
+    ports:
+      - "6380:6379"
+  zookeeper:
+    image: docker.io/bitnami/zookeeper:3.8
+    container_name: neutron-local-zookeeper
+    networks:
+      neutron:
+        aliases:
+          - neutron-local-zookeeper
+    ports:
+      - "2182:2181"
+    volumes:
+      - "zookeeper_data:/bitnami"
+    environment:
+      - ALLOW_ANONYMOUS_LOGIN=yes
+  kafka:
+    image: docker.io/bitnami/kafka:3.3
+    container_name: neutron-local-kafka
+    networks:
+      neutron:
+        aliases:
+          - neutron-local-kafka
+    ports:
+      - "9092:9092"
+    volumes:
+      - "./kafka_data:/bitnami"
+    environment:
+      - KAFKA_CFG_ZOOKEEPER_CONNECT=zookeeper:2181
+      - ALLOW_PLAINTEXT_LISTENER=yes
+      - KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP=CLIENT:PLAINTEXT,EXTERNAL:PLAINTEXT
+      - KAFKA_CFG_LISTENERS=CLIENT://:9092,EXTERNAL://:9093
+      - KAFKA_CFG_ADVERTISED_LISTENERS=CLIENT://localhost:9092,EXTERNAL://localhost:9093
+      - KAFKA_CFG_INTER_BROKER_LISTENER_NAME=CLIENT
+    depends_on:
+      - zookeeper
+
+volumes:
+  zookeeper_data:
+    driver: local
+  kafka_data:
+    driver: local

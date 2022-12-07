@@ -2,7 +2,7 @@ server:
   port: 8081
 spring:
   datasource:
-    url: jdbc:postgresql://localhost:5432/neutron-db?useSSL=false
+    url: jdbc:postgresql://localhost:5433/neutron-db?useSSL=false
     username: neutron
     password: Asdqwe123#
     driver-class-name: org.postgresql.Driver
@@ -17,3 +17,77 @@ spring:
         max-idle: 20
         min-idle: 2
     timeout: 5000
+  # 参考：https://juejin.cn/post/7048607334288850957
+  #-----------------kafka----------------------------
+  kafka:
+    bootstrap-servers: localhost:9092
+    #----------------生产者配置------------------------
+    producer:
+      # 重试次数, 如果设置可能改变消息顺序。例如消息1重试2成功
+      retries: 3
+      #可选0,1,-1 默认1
+      #0:只要发送过去就返回ack 吞吐量高，可以容忍一些数据丢失
+      #1:当有个一个副本(leader的)写成功就算成功，如果leader挂了其他broker没有同步则可能出现消息丢失
+      #-1:保证isr写入数不小于min.insync.replicas(在server.properties 或者创建主题的时候设置)才算成功
+#      acks: 1
+      # 批量大小 16K=16*1024
+      batch-size: 1000
+      properties:
+        max:
+          request:
+            #请求最大字节数，防止数据过大 1M=1024*1024
+            size: 1048576
+        linger:
+          # 提交延时
+          # 当生产端积累的消息达到batch-size或接收到消息linger.ms后,生产者就会将消息提交给kafka
+          # linger.ms为0表示每接收到一条消息就提交给kafka,这时候batch-size其实就没用了
+          ms: 100
+#        partitioner:
+           # 自定义分区器 默认org.apache.kafka.clients.producer.internals.DefaultPartitioner
+#          class: org.apache.kafka.clients.producer.internals.DefaultPartitioner
+      # 生产端缓冲区大小 32M=1024*1024*32
+      buffer-memory: 33554432
+#      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+#      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    #----------------初始化消费者配置------------------------
+    consumer:
+      bootstrap-servers: localhost:9092
+      # 默认的消费组ID
+      group-id: neutron-microservice-core
+      # 当kafka中没有初始offset或offset超出范围时将自动重置offset
+      # earliest:消费当前所有的数据(重置为分区中最小的offset);
+      # latest:重置为分区中最新的offset(消费分区中新产生的数据);
+      # none:只要有一个分区不存在已提交的offset,就抛出异常;
+      auto-offset-reset: latest
+      # 批量消费每次最多消费多少条消息
+      max-poll-records: 50
+      # 是否自动提交offset
+      enable-auto-commit: false
+      auto:
+        commit:
+          interval:
+            # 提交offset延时(接收到消息后多久提交offset)
+            ms: 1000
+      properties:
+        request:
+          timeout:
+            # 客户端将等待请求的响应的最大时间,如果在这个时间内没有收到响应，客户端将重发请求;超过重试次数将抛异常
+            ms: 30000
+        session:
+          timeout:
+            # 消费会话超时时间(超过这个时间consumer没有发送心跳,就会触发rebalance操作)
+            ms: 10000
+#      auto-commit-interval: 1000
+      # Kafka提供的序列化和反序列化类
+#      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+#      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    listener:
+      # 消费端监听的topic不存在时，项目启动会报错(关掉)
+      missing-topics-fatal: false
+      #manual: 表示手动提交，但是测试下来发现是批量提交
+      #manual_immediate: 表示手动提交，当调用 Acknowledgment#acknowledge之后立马提交。
+      #spring.kafka.listener.ack-mode=manual
+      ack-mode: manual_immediate
+      # 经测试也是批量提交的ack , 当消费完 spring.kafka.consumer.max-poll-records 这么多的数据时候，提交
+      poll-timeout: 50S
+
